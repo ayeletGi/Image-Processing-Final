@@ -216,7 +216,6 @@ class Image:
                             (x + w, y + h),
                             (0, 0, 255),
                             4)
-
         self.variations[Image.brect_key] = result
         
     def morphological_transform(self, source, struct, kernel_size, method, iter):
@@ -300,7 +299,6 @@ class Process:
         start = timeit.default_timer()
 
         for img in self.images:   
-            # img = Image(img)   
             # first step - cleaning noises
             img.meddian_blur(source=Image.org_gray_key,
                              kernel_size=7)
@@ -341,18 +339,22 @@ class Process:
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
         
-        # plot all images
+    def plot_images_varaitions(self):
         for img in self.images:
-            # img.plt_final_result()
             img.plt_variations()
-            
+    
+    def plot_images_results(self):
+        for img in self.images:
+            img.plt_final_result()
+
         
 def main():
     # images_numbers = range(1, 8)
-    images_numbers = [3]
+    images_numbers = [6]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images(scale_percent = 90)
     process.find_pieces()
+    process.plot_images_results()
 
 
 if __name__ == '__main__':
