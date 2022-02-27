@@ -1,4 +1,6 @@
+from unittest import result
 import cv2
+from cv2 import boundingRect
 import matplotlib.pyplot as plt
 import timeit
 import numpy as np
@@ -154,7 +156,31 @@ class Image:
         
         self.variations[self.hough_lines_key] = lines_result
         self.variations[self.cropping_key] = crop_result
-            
+
+    def erode(self, source, struct, kernel_size, iter):
+        kernel = cv2.getStructuringElement(struct,
+                                           (kernel_size, kernel_size))
+        erosion = cv2.morphologyEx(self.variations[source],
+                                   cv2.MORPH_ERODE,
+                                   kernel,
+                                   None,
+                                   None,
+                                   iter,
+                                   cv2.BORDER_REFLECT101)
+        self.variations[Image.erosion_key] = erosion
+
+    def dilate(self, source, struct, kernel_size, iter):
+        kernel = cv2.getStructuringElement(struct,
+                                           (kernel_size, kernel_size))
+        dilation = cv2.morphologyEx(self.variations[source],
+                                    cv2.MORPH_DILATE,
+                                    kernel,
+                                    None,
+                                    None,
+                                    iter,
+                                    cv2.BORDER_REFLECT101)
+        self.variations[Image.dilation_key] = dilation
+        
     def find_and_fill_contours(self, source):
         """_summary_
         Args:
@@ -190,69 +216,52 @@ class Image:
 
         self.variations[Image.fill_polly_key] = result
 
-    def bounding_rect(self, source, min, max):
+    def find_bounding_rect(self, source):
         """_summary_
         Args:
             source (_type_): _description_
             rect_range (_type_): _description_
         """
-        result = self.variations[Image.org_color_key].copy()
-
-        contours, hierarchy = cv2.findContours(self.variations[source],
+        contours, __ = cv2.findContours(self.variations[source],
                                         cv2.RETR_CCOMP,
-                                        cv2.CHAIN_APPROX_SIMPLE)
+                                        cv2.CHAIN_APPROX_NONE)
+        self.pieces = [cv2.boundingRect(c) for c in contours]
 
+    def draw_good_pieces(self, min, max):
+        # remove small and huge rectangles
+        print(len(self.pieces))
+        self.pieces = [(x, y, w, h) for (x, y, w, h) in self.pieces if (min < w < max and min < h < max)]
+        print(len(self.pieces))
+        # check if the rect is completely inside another one
+        good_pieces = []
+        for rect1 in self.pieces:
+            x1, y1, w1, h1 = rect1
 
-        contours_poly = [None] * len(contours)
-        boundRect = []
+            parent = 0
+            for rect2 in self.pieces:
+                x2, y2, w2, h2 = rect2
+                if rect1 == rect2:
+                    continue
+                if x2 <= x1 and y2 <= y1 and (x2+w2) >= (x1+w1) and (y2+h2) >= (y1+h1):
+                    parent +=1
 
-        # Alright, just look for the outer bounding boxes:
-        for i, c in enumerate(contours):
-            if hierarchy[0][i][3] == -1:
-                contours_poly[i] = cv2.approxPolyDP(c, 3, True)
-                boundRect.append(cv2.boundingRect(contours_poly[i]))
-                
-        for c in contours:
-            # finding smallest blocking rectangle
-            x, y, w, h = cv2.boundingRect(c)
-            # really small rectangles
-            if w < min and h < min:
-                continue
-            # too big
-            if w > max or h > max:
-                continue
+            if parent == 0:
+                good_pieces.append(rect1)
+        
+        print(len(good_pieces))
+        # draw
+        result = self.variations[Image.org_color_key].copy()
+        for rect in good_pieces:
+            x, y, w, h = rect
             # drawing
             cv2.rectangle(result,
                             (x, y),
                             (x + w, y + h),
                             (0, 0, 255),
                             4)
+        self.pieces = good_pieces
         self.variations[Image.brect_key] = result
-    
-    def erode(self, source, struct, kernel_size, iter):
-        kernel = cv2.getStructuringElement(struct,
-                                           (kernel_size, kernel_size))
-        erosion = cv2.morphologyEx(self.variations[source],
-                                   cv2.MORPH_ERODE,
-                                   kernel,
-                                   None,
-                                   None,
-                                   iter,
-                                   cv2.BORDER_REFLECT101)  
-        self.variations[Image.erosion_key] = erosion
-    
-    def dilate(self, source, struct, kernel_size, iter):
-        kernel = cv2.getStructuringElement(struct,
-                                           (kernel_size, kernel_size))
-        dilation = cv2.morphologyEx(self.variations[source],
-                                    cv2.MORPH_DILATE,
-                                    kernel,
-                                    None,
-                                    None,
-                                    iter,
-                                    cv2.BORDER_REFLECT101)
-        self.variations[Image.dilation_key] = dilation
-   
+        
     def plt_final_result(self):
         """_summary_
         """
@@ -318,7 +327,7 @@ class Process:
             # img = Image(img)  
             # first step - cleaning noises
             img.gaussian_blur(source=Image.org_gray_key,
-                             kernel_size=21)
+                             kernel_size=41)
             img.sharpen(source=Image.gblur_key)
             img.threshold(source=Image.sharpen_key,
                           block_size=601,
@@ -328,26 +337,29 @@ class Process:
             # second step - detect contours and fill
             img.find_and_fill_contours(source=Image.cropping_key)
             img.dilate(source=Image.fcontours_key,
-                       struct=cv2.MORPH_CROSS,
+                       struct=cv2.MORPH_ELLIPSE,
                        kernel_size=5,
                        iter=3)
             
             img.erode(source=Image.dilation_key,
-                      struct=cv2.MORPH_RECT,
-                      kernel_size=5,
-                      iter=3)
+                      struct=cv2.MORPH_CROSS,
+                      kernel_size=3,
+                      iter=5)
 
             img.dilate(source = Image.erosion_key,
                        struct=cv2.MORPH_ELLIPSE,
                         kernel_size = 5,
-                        iter = 7)
+                        iter = 4)
             
             # third step - fill holes
             img.meddian_blur(source=Image.dilation_key,
-                             kernel_size=21)
+                             kernel_size=11)
             img.fill_poly(source=Image.mblur_key)
+            
             # final step - detect bounding rect
-            img.bounding_rect(source=Image.fill_polly_key, min=40, max=4000)
+            img.find_bounding_rect(source=Image.fill_polly_key)
+            img.draw_good_pieces(min=40,
+                                 max=3000)
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
@@ -362,8 +374,8 @@ class Process:
 
         
 def main():
-    images_numbers = range(1, 8)
-    # images_numbers = [1]
+    # images_numbers = range(1, 8)
+    images_numbers = [3]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
