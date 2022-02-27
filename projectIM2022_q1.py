@@ -17,10 +17,10 @@ def plot_color_imshow(img, title):
     plt.title(title)
 
 
-class Piece:
+# class Piece:
 
-    def __init__(self) -> None:
-        pass
+#     def __init__(self) -> None:
+#         pass
 
 
 class Image:
@@ -44,19 +44,21 @@ class Image:
         self.title = title
         self.path = path
         self.variations = {}    # dict[str, np.array]
-        self.pieces = []    # list[Piece]
+        # self.pieces = []    # list[Piece]
 
     def plt_variations(self, rows=2):
         total = len(self.variations)
         cols = (total // rows) + (total % rows > 0)
 
         plt.suptitle(self.title, size=16)
+        
         for i, (title, img) in enumerate(self.variations.items()):
             plt.subplot(rows, cols, i + 1)
             if "color" in title:
                 plot_color_imshow(img, title)
             else:
                 plot_gray_imshow(img, title)
+                
         plt.show()
 
     def gaussian_blur(self, kernel_size, source):
@@ -119,7 +121,7 @@ class Image:
                                    cv2.MORPH_OPEN,
                                    kernel,
                                    iterations=1)
-        self.variations[Image.mclose_cross_key] = opening
+        self.variations[Image.mopen_cross_key] = opening
 
     def morph_cross_close(self, source, kernel_size):
         kernel = cv2.getStructuringElement(cv2.MORPH_CROSS,
@@ -257,9 +259,9 @@ class Process:
         for img in self.images:
             img.fill_poly(source)
                     
-    def apply_bounding_rect(self, source):
+    def apply_bounding_rect(self, source, min, max):
         for img in self.images:
-            img.bounding_rect(source)
+            img.bounding_rect(source, min, max)
         
     def plt_images_final_results(self):
         for img in self.images:
@@ -270,24 +272,23 @@ def main():
     print("Please be patience, this pipline may take a while..")
     start = timeit.default_timer()
 
-    # images_numbers = range(1, 8)
-    images_numbers = [1]
+    images_numbers = range(1, 8)
+    # images_numbers = [5]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     
-    process.apply_threshold(source=Image.org_gray_key, block_size=601)
-    process.apply_canny_edges(source=Image.thresh_key)
-    process.apply_fill_poly(source=Image.canny_key)
-
+    process.apply_meddian_blur(source=Image.org_gray_key, kernel_size=15)
+    process.apply_threshold(source=Image.mblur_key, block_size=601)
     
     process.apply_find_and_fill_contours(source=Image.thresh_key)
     process.apply_morph_cross_close(source=Image.fcontours_key, kernel_size= 11)
-    process.apply_morph_rect_open(source=Image.mclose_cross_key, kernel_size=3)
+    process.apply_morph_cross_open(source=Image.mclose_cross_key, kernel_size=3)
     
-    # process.apply_fill_contours(source=Image.mopen_key)
-    # process.apply_morph_close(source=Image.fcontours_key)
-    # process.apply_morph_open(source=Image.mclose_key)
-    # process.apply_bounding_rect(source=Image.mopen_key)
+    process.apply_find_and_fill_contours(source=Image.mopen_cross_key)
+    process.apply_morph_cross_close(source=Image.fcontours_key, kernel_size=11)
+    process.apply_morph_cross_open(source=Image.mclose_cross_key, kernel_size=3)
+    
+    process.apply_bounding_rect(source=Image.mopen_cross_key, min = 40, max = 3000)
     
     stop = timeit.default_timer()
     print(f"Pipline finished! time: {stop - start} seconds")
