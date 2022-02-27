@@ -182,8 +182,8 @@ class Image:
         result = self.variations[source].copy()
 
         contours, __ = cv2.findContours(self.variations[source],
-                                        cv2.RETR_CCOMP,
-                                        cv2.CHAIN_APPROX_SIMPLE)
+                                        cv2.RETR_TREE,
+                                        cv2.CHAIN_APPROX_NONE)
         cv2.fillPoly(result,
                      contours,
                      color=(255, 255, 255))
@@ -317,17 +317,22 @@ class Process:
         for img in self.images: 
             # img = Image(img)  
             # first step - cleaning noises
-            img.meddian_blur(source=Image.org_gray_key,
-                             kernel_size=51)
-            img.sharpen(source=Image.mblur_key)
+            img.gaussian_blur(source=Image.org_gray_key,
+                             kernel_size=21)
+            img.sharpen(source=Image.gblur_key)
             img.threshold(source=Image.sharpen_key,
-                          block_size=501,
+                          block_size=601,
                           c=5)
             img.hough_lines(source=Image.thresh_key)
             
             # second step - detect contours and fill
             img.find_and_fill_contours(source=Image.cropping_key)
-            img.erode(source=Image.fcontours_key,
+            img.dilate(source=Image.fcontours_key,
+                       struct=cv2.MORPH_CROSS,
+                       kernel_size=5,
+                       iter=3)
+            
+            img.erode(source=Image.dilation_key,
                       struct=cv2.MORPH_RECT,
                       kernel_size=5,
                       iter=3)
@@ -335,17 +340,14 @@ class Process:
             img.dilate(source = Image.erosion_key,
                        struct=cv2.MORPH_ELLIPSE,
                         kernel_size = 5,
-                        iter = 10)
-            
-            img.erode(source=Image.fcontours_key,
-                      struct=cv2.MORPH_CROSS,
-                      kernel_size=3,
-                      iter=3)
+                        iter = 7)
             
             # third step - fill holes
-            # img.fill_poly(source=Image.erosion_key)
+            img.meddian_blur(source=Image.dilation_key,
+                             kernel_size=21)
+            img.fill_poly(source=Image.mblur_key)
             # final step - detect bounding rect
-            img.bounding_rect(source=Image.dilation_key, min=40, max=4000)
+            img.bounding_rect(source=Image.fill_polly_key, min=40, max=4000)
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
@@ -360,13 +362,13 @@ class Process:
 
         
 def main():
-    # images_numbers = range(1, 8)
-    images_numbers = [10]
+    images_numbers = range(1, 8)
+    # images_numbers = [1]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
-    process.plot_images_varaitions()
-    # process.plot_images_results()
+    # process.plot_images_varaitions()
+    process.plot_images_results()
 
 
 if __name__ == '__main__':
