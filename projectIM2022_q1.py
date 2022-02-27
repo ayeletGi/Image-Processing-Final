@@ -81,13 +81,13 @@ class Image:
                                    kernel=kernel)
         self.variations[self.sharpen_key] = image_sharp
         
-    def threshold(self, source, block_size):
+    def threshold(self, source, block_size, c):
         thresh = cv2.adaptiveThreshold(self.variations[source],
                                        maxValue=WHITE,
                                        adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                        thresholdType=cv2.THRESH_BINARY_INV,
                                        blockSize=block_size,
-                                       C=5)
+                                       C=c)
         self.variations[self.thresh_key] = thresh
 
     def laplacian_derivatives(self, source):
@@ -260,7 +260,7 @@ class Process:
         self.suffix = suffix
         self.images = []
 
-    def open_images(self, scale_percent):
+    def open_images(self, scale_percent = -1):
         """_summary_
         Args:
             scale_percent (_type_): _description_
@@ -275,14 +275,15 @@ class Process:
             if img_color is None:
                 print(f"Failed to read image, check the path: {path}")
             else:
-                # resize image
-                width = int(img_color.shape[1] * scale_percent / 100)
-                height = int(img_color.shape[0] * scale_percent / 100)
-                dim = (width, height)
+                if scale_percent > 0:
+                    # resize image
+                    width = int(img_color.shape[1] * scale_percent / 100)
+                    height = int(img_color.shape[0] * scale_percent / 100)
+                    dim = (width, height)
 
-                img_color = cv2.resize(img_color,
-                                    dim,
-                                    interpolation=cv2.INTER_AREA)
+                    img_color = cv2.resize(img_color,
+                                        dim,
+                                        interpolation=cv2.INTER_AREA)
                 # convert to gray
                 img_gray = cv2.cvtColor(img_color, cv2.COLOR_BGR2GRAY)
                 # create Image object and add original variations
@@ -299,12 +300,16 @@ class Process:
         start = timeit.default_timer()
 
         for img in self.images:   
+            # img=Image(img)
             # first step - cleaning noises
             img.meddian_blur(source=Image.org_gray_key,
-                             kernel_size=7)
-            img.sharpen(source=Image.mblur_key)
+                             kernel_size=11)
+            img.gaussian_blur(source=Image.mblur_key,
+                              kernel_size=11)
+            img.sharpen(source=Image.gblur_key)
             img.threshold(source=Image.sharpen_key,
-                          block_size=301)
+                          block_size=601,
+                          c=5)
             img.hough_lines(source=Image.thresh_key)
             
             # second step - detect contours and fill
@@ -327,14 +332,9 @@ class Process:
                                         kernel_size=5,
                                         method=cv2.MORPH_CLOSE,
                                         iter=2)
-            img.morphological_transform(source=Image.mclose_key,
-                                        struct=cv2.MORPH_RECT,
-                                        kernel_size=11,
-                                        method=cv2.MORPH_OPEN,
-                                        iter=2)
 
             # final step - detect bounding rect
-            img.bounding_rect(source=Image.mopen_key, min=5, max=2000)
+            img.bounding_rect(source=Image.mclose_key, min=5, max=2000)
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
@@ -352,8 +352,9 @@ def main():
     # images_numbers = range(1, 8)
     images_numbers = [6]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
-    process.open_images(scale_percent = 90)
+    process.open_images()
     process.find_pieces()
+    # process.plot_images_varaitions()
     process.plot_images_results()
 
 
