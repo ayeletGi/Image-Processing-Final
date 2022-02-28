@@ -38,7 +38,8 @@ class Image:
     brect_key = "bounding rect color"
     cropping_key = "cropping frame"
     del_temp_key = "delete template"
-
+    bblur_key = "bilateral filter"
+    
     def __init__(self, title, path) -> None:
         self.title = title
         self.path = path
@@ -94,6 +95,11 @@ class Image:
             #     self.variations[self.org_color_key], pt, (pt[0] + temp_w, pt[1] + temp_h), (255, 0, 0), 2)
 
         self.variations[self.del_temp_key] = result
+
+    def bilateral_blur(self, source, d, sigma_color, sigma_space):
+        blurred = cv2.bilateralFilter(self.variations[source],
+                                      d, sigma_color, sigma_space)
+        self.variations[self.bblur_key] = blurred
 
     def gaussian_blur(self, source, kernel_size):
         blurred = cv2.GaussianBlur(self.variations[source],
@@ -265,21 +271,22 @@ class Image:
             border_size (_type_): _description_
             min_gray (_type_): _description_
         """
-        # remove small and huge rectangles
-        self.pieces = [(x, y, w, h) for (x, y, w, h)
-                       in self.pieces if (min < w < max and min < h < max)]
-
         # helping vars
         org_gray = self.variations[Image.org_gray_key]
         (rows, cols) = org_gray.shape
         good_pieces = []
 
+        # remove small and huge rectangles
+        self.pieces = [(x, y, w, h) for (x, y, w, h)
+                       in self.pieces if (min < w < max and min < h < max)]
+       
+        # remove if rect is too close to the borders
+        self.pieces = [(x, y, w, h) for (x, y, w, h) in self.pieces if not
+                       (y < border_size or y > rows - border_size or x < border_size or x > cols - border_size)]
+                
+
         for rect1 in self.pieces:
             x1, y1, w1, h1 = rect1
-
-            # check if rect is too close to the borders
-            if y1 < border_size or y1 > rows - border_size or x1 < border_size or x1 > cols - border_size:
-                continue
 
             # check if area contains dark pixels
             area = org_gray[y1:y1 + h1, x1:x1 + w1]
@@ -400,14 +407,18 @@ class Process:
 
             # img = Image(img)
             # first step - cleaning noises
-            img.gaussian_blur(source=Image.org_gray_key,
-                              kernel_size=51)
+            img.bilateral_blur(source=Image.org_gray_key,
+                               d=15,
+                               sigma_color=45,
+                               sigma_space=45)
+            # img.gaussian_blur(source=Image.org_gray_key,
+            #                   kernel_size=61)
 
-            img.sharpen(source=Image.gblur_key)
+            # img.sharpen(source=Image.bblur_key)
 
-            img.threshold(source=Image.sharpen_key,
-                          block_size=621,
-                          c=5)
+            img.threshold(source=Image.bblur_key,
+                          block_size=601,
+                          c=2)
 
             img.hough_lines(source=Image.thresh_key)
 
@@ -419,21 +430,21 @@ class Process:
             img.dilate(source=Image.fcontours_key,
                        struct=cv2.MORPH_ELLIPSE,
                        kernel_size=5,
-                       iter=2)
+                       iter=4)
 
             img.erode(source=Image.dilation_key,
                       struct=cv2.MORPH_ELLIPSE,
-                      kernel_size=5,
+                      kernel_size=7,
                       iter=4)
 
             # third step - fill holes
             img.meddian_blur(source=Image.dilation_key,
-                             kernel_size=5)
+                             kernel_size=3)
 
             img.erode(source=Image.mblur_key,
                       struct=cv2.MORPH_CROSS,
-                      kernel_size=3,
-                      iter=2)
+                      kernel_size=5,
+                      iter=4)
 
             # final step - detect and draw the bounding rect
             img.find_bounding_rect(source=Image.erosion_key)
@@ -447,8 +458,8 @@ class Process:
             img.write_to_excel()
 
             print(f"finished {img.title}")
-            # img.plt_variations()
-            img.plt_final_result()
+            img.plt_variations()
+            # img.plt_final_result()
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
@@ -456,7 +467,7 @@ class Process:
 
 def main():
     # images_numbers = range(1, 8)
-    images_numbers = [3]
+    images_numbers = [1]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
