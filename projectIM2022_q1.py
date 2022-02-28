@@ -220,21 +220,28 @@ class Image:
         """_summary_
         Args:
             source (_type_): _description_
-            rect_range (_type_): _description_
         """
         contours, __ = cv2.findContours(self.variations[source],
                                         cv2.RETR_CCOMP,
                                         cv2.CHAIN_APPROX_NONE)
         self.pieces = [cv2.boundingRect(c) for c in contours]
 
-    def draw_good_pieces(self, min, max, border_size):
-        
-        org_gray = self.variations[Image.org_gray_key]
-
+    def keep_good_pieces(self, min, max, border_size, min_gray):
+        """_summary_
+        Args:
+            min (_type_): _description_
+            max (_type_): _description_
+            border_size (_type_): _description_
+            min_gray (_type_): _description_
+        """
         # remove small and huge rectangles
         self.pieces = [(x, y, w, h) for (x, y, w, h) in self.pieces if (min < w < max and min < h < max)]
+        
+        # helping vars
+        org_gray = self.variations[Image.org_gray_key]
         (rows, cols) = org_gray.shape
         good_pieces = []
+        
         for rect1 in self.pieces:
             x1, y1, w1, h1 = rect1
             
@@ -244,7 +251,7 @@ class Image:
             
             # check if the rect contains dark pixels
             area = org_gray[y1:y1 + h1, x1:x1 + w1]
-            dark_pix = np.sum(area <= 150)
+            dark_pix = np.sum(area <= min_gray)
             if dark_pix == 0:
                 continue
             
@@ -259,19 +266,33 @@ class Image:
 
             if parent == 0:
                 good_pieces.append(rect1)
+                
+        # keep only good pieces
+        self.pieces = good_pieces
         
+    def sort_pieces(self):
+        pass
+    
+    def draw_pieces(self):
         # draw
         result = self.variations[Image.org_color_key].copy()
-        for rect in good_pieces:
+        for i, rect in enumerate(self.pieces):
             x, y, w, h = rect
             cv2.rectangle(result,
-                            (x, y),
-                            (x + w, y + h),
-                            (0, 0, 255),
-                            4)
-        self.pieces = good_pieces
+                          (x, y),
+                          (x + w, y + h),
+                          (0, 0, 255),
+                          4)
+            cv2.putText(result, 
+                        i+1,
+                        (x, y-10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.9,
+                        (0, 0, 255),
+                        2)
+
         self.variations[Image.brect_key] = result
-        
+
     def plt_final_result(self):
         """_summary_
         """
@@ -334,39 +355,51 @@ class Process:
         start = timeit.default_timer()
 
         for img in self.images: 
-            # img = Image(img)  
+            img = Image(img)  
             # first step - cleaning noises
             img.gaussian_blur(source=Image.org_gray_key,
-                             kernel_size=41)
+                             kernel_size=51)
+            
             img.sharpen(source=Image.gblur_key)
+            
             img.threshold(source=Image.sharpen_key,
-                          block_size=601,
+                          block_size=621,
                           c=5)
+            
             img.hough_lines(source=Image.thresh_key)
             
             # second step - detect contours and fill
             img.find_and_fill_contours(source=Image.cropping_key)
+            
             img.dilate(source=Image.fcontours_key,
                        struct=cv2.MORPH_ELLIPSE,
-                       kernel_size=5,
-                       iter=3)
+                       kernel_size=9,
+                       iter=4)
             
             img.erode(source=Image.dilation_key,
-                      struct=cv2.MORPH_CROSS,
-                      kernel_size=3,
-                      iter=5)
+                      struct=cv2.MORPH_ELLIPSE,
+                      kernel_size=5,
+                      iter=4)
             
             # third step - fill holes
             img.meddian_blur(source=Image.dilation_key,
-                             kernel_size=11)
-            img.fill_poly(source=Image.mblur_key)
+                             kernel_size=17)
             
+            img.erode(source=Image.mblur_key,
+                                struct=cv2.MORPH_CROSS,
+                                kernel_size=5,
+                                iter=4)     
+                   
             # final step - detect bounding rect
-            img.find_bounding_rect(source=Image.fill_polly_key)
-            img.draw_good_pieces(min=40,
+            img.find_bounding_rect(source=Image.erosion_key)
+            
+            img.keep_good_pieces(min=40,
                                  max=3000,
-                                 border_size=200)
-
+                                 border_size=200,
+                                 min_gray = 150)
+            
+            img.draw_pieces()
+            
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
         
@@ -381,11 +414,11 @@ class Process:
         
 def main():
     images_numbers = range(1, 8)
-    # images_numbers = [1]
+    # images_numbers = [4]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
-    process.plot_images_varaitions()
+    # process.plot_images_varaitions()
     process.plot_images_results()
 
 
