@@ -329,7 +329,7 @@ class Image:
         coordinations = [(x, y, x+w, y+h) for (x,y,w,h) in self.pieces]
         df = pd.DataFrame(coordinations,
                           columns=['top left x', 'top left y', 'down right x', 'down right y'])
-        with pd.ExcelWriter(LOG_PATH, engine='openpyxl', mode='a') as writer:
+        with pd.ExcelWriter(LOG_PATH, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=self.title)
         
     def plt_final_result(self):
