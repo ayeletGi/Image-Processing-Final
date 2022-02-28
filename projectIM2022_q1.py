@@ -224,18 +224,18 @@ class Image:
         Args:
             source (_type_): _description_
         """
-        result = self.variations[source].copy()
-
+        size = self.variations[source].shape
+        result = np.zeros(size)
         contours, __ = cv2.findContours(self.variations[source],
-                                        cv2.RETR_TREE,
+                                        cv2.RETR_EXTERNAL,
                                         cv2.CHAIN_APPROX_NONE)
         cv2.drawContours(result,
                          contours,
                          -1,
-                         color=(255, 255, 255),
-                         thickness=cv2.FILLED,
-                         lineType=cv2.LINE_AA)
+                         color=WHITE,
+                         thickness=cv2.FILLED)
 
+        result = result.astype(np.uint8)
         self.variations[Image.fcontours_key] = result
 
     def fill_poly(self, source):
@@ -246,11 +246,11 @@ class Image:
         result = self.variations[source].copy()
 
         contours, __ = cv2.findContours(self.variations[source],
-                                        cv2.RETR_TREE,
+                                        cv2.RETR_CCOMP,
                                         cv2.CHAIN_APPROX_NONE)
         cv2.fillPoly(result,
                      contours,
-                     color=(255, 255, 255))
+                     color=WHITE)
 
         self.variations[Image.fill_polly_key] = result
 
@@ -412,11 +412,7 @@ class Process:
                                d=15,
                                sigma_color=45,
                                sigma_space=45)
-            # img.gaussian_blur(source=Image.org_gray_key,
-            #                   kernel_size=61)
-
-            # img.sharpen(source=Image.bblur_key)
-
+        
             img.threshold(source=Image.bblur_key,
                           block_size=601,
                           c=2)
@@ -426,7 +422,7 @@ class Process:
             img.delete_template(source=Image.cropping_key)
 
             # second step - detect contours and fill
-            # img.find_and_fill_contours(source=Image.del_temp_key)
+            img.find_and_fill_contours(source=Image.del_temp_key)
 
             # img.dilate(source=Image.fcontours_key,
             #            struct=cv2.MORPH_ELLIPSE,
@@ -458,9 +454,9 @@ class Process:
             # img.draw_pieces()
             # img.write_to_excel()
 
-            # print(f"finished {img.title}")
+            print(f"finished {img.title}")
             img.plt_variations()
-            # img.plt_final_result()
+            img.plt_final_result()
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
@@ -468,7 +464,7 @@ class Process:
 
 def main():
     # images_numbers = range(1, 8)
-    images_numbers = [2]
+    images_numbers = [3]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
