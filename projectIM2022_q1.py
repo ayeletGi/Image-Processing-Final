@@ -227,16 +227,28 @@ class Image:
                                         cv2.CHAIN_APPROX_NONE)
         self.pieces = [cv2.boundingRect(c) for c in contours]
 
-    def draw_good_pieces(self, min, max):
+    def draw_good_pieces(self, min, max, border_size):
+        
+        org_gray = self.variations[Image.org_gray_key]
+
         # remove small and huge rectangles
-        print(len(self.pieces))
         self.pieces = [(x, y, w, h) for (x, y, w, h) in self.pieces if (min < w < max and min < h < max)]
-        print(len(self.pieces))
-        # check if the rect is completely inside another one
+        (rows, cols) = org_gray.shape
         good_pieces = []
         for rect1 in self.pieces:
             x1, y1, w1, h1 = rect1
-
+            
+            # check if rect is too close to the borders
+            if y1 < border_size or y1 > rows - border_size or x1 < border_size or x1 > cols - border_size:
+                continue
+            
+            # check if the rect contains dark pixels
+            area = org_gray[y1:y1 + h1, x1:x1 + w1]
+            dark_pix = np.sum(area <= 150)
+            if dark_pix == 0:
+                continue
+            
+            # check if the rect is completely inside another one
             parent = 0
             for rect2 in self.pieces:
                 x2, y2, w2, h2 = rect2
@@ -248,12 +260,10 @@ class Image:
             if parent == 0:
                 good_pieces.append(rect1)
         
-        print(len(good_pieces))
         # draw
         result = self.variations[Image.org_color_key].copy()
         for rect in good_pieces:
             x, y, w, h = rect
-            # drawing
             cv2.rectangle(result,
                             (x, y),
                             (x + w, y + h),
@@ -345,11 +355,6 @@ class Process:
                       struct=cv2.MORPH_CROSS,
                       kernel_size=3,
                       iter=5)
-
-            img.dilate(source = Image.erosion_key,
-                       struct=cv2.MORPH_ELLIPSE,
-                        kernel_size = 5,
-                        iter = 4)
             
             # third step - fill holes
             img.meddian_blur(source=Image.dilation_key,
@@ -359,7 +364,8 @@ class Process:
             # final step - detect bounding rect
             img.find_bounding_rect(source=Image.fill_polly_key)
             img.draw_good_pieces(min=40,
-                                 max=3000)
+                                 max=3000,
+                                 border_size=200)
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
@@ -374,12 +380,12 @@ class Process:
 
         
 def main():
-    # images_numbers = range(1, 8)
-    images_numbers = [3]
+    images_numbers = range(1, 8)
+    # images_numbers = [1]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
-    # process.plot_images_varaitions()
+    process.plot_images_varaitions()
     process.plot_images_results()
 
 
