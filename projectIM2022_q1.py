@@ -424,24 +424,24 @@ class Process:
             # second step - detect contours and fill
             img.find_and_fill_contours(source=Image.del_temp_key)
 
-            # img.dilate(source=Image.fcontours_key,
-            #            struct=cv2.MORPH_ELLIPSE,
-            #            kernel_size=5,
-            #            iter=4)
+            img.dilate(source=Image.fcontours_key,
+                       struct=cv2.MORPH_ELLIPSE,
+                       kernel_size=5,
+                       iter=4)
 
-            # img.erode(source=Image.dilation_key,
-            #           struct=cv2.MORPH_ELLIPSE,
-            #           kernel_size=7,
-            #           iter=4)
+            img.erode(source=Image.dilation_key,
+                      struct=cv2.MORPH_ELLIPSE,
+                      kernel_size=7,
+                      iter=4)
 
-            # # third step - fill holes
-            # img.meddian_blur(source=Image.dilation_key,
-            #                  kernel_size=3)
+            # third step - fill holes
+            img.meddian_blur(source=Image.erosion_key,
+                             kernel_size=3)
 
-            # img.erode(source=Image.mblur_key,
-            #           struct=cv2.MORPH_CROSS,
-            #           kernel_size=7,
-            #           iter=4)
+            img.erode(source=Image.mblur_key,
+                      struct=cv2.MORPH_CROSS,
+                      kernel_size=3,
+                      iter=4)
 
             # # final step - detect and draw the bounding rect
             # img.find_bounding_rect(source=Image.erosion_key)
@@ -456,7 +456,7 @@ class Process:
 
             print(f"finished {img.title}")
             img.plt_variations()
-            img.plt_final_result()
+            # img.plt_final_result()
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
