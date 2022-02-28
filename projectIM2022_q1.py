@@ -329,7 +329,7 @@ class Image:
         coordinations = [(x, y, x+w, y+h) for (x,y,w,h) in self.pieces]
         df = pd.DataFrame(coordinations,
                           columns=['top left x', 'top left y', 'down right x', 'down right y'])
-        with pd.ExcelWriter(LOG_PATH) as writer:
+        with pd.ExcelWriter(LOG_PATH, engine='openpyxl', mode='a') as writer:
             df.to_excel(writer, sheet_name=self.title)
         
     def plt_final_result(self):
@@ -393,7 +393,9 @@ class Process:
         print("Please be patience, this pipline may take a while..")
         start = timeit.default_timer()
 
-        for img in self.images: 
+        for img in self.images:
+            print(f"starting {img.title}")
+
             # img = Image(img)  
             # first step - cleaning noises
             img.gaussian_blur(source=Image.org_gray_key,
@@ -436,32 +438,26 @@ class Process:
             
             img.keep_good_pieces(min=40,
                                  max=3000,
-                                 border_size=250,
+                                 border_size=200,
                                  min_gray = 150)
             
             img.draw_pieces()
             img.write_to_excel()
             
+            print(f"finished {img.title}")
+            # img.plt_variations()
+            img.plt_final_result()
+
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
         
-    def plot_images_varaitions(self):
-        for img in self.images:
-            img.plt_variations()
-    
-    def plot_images_results(self):
-        for img in self.images:
-            img.plt_final_result()
-
         
 def main():
-    images_numbers = range(1, 8)
-    # images_numbers = [7]
+    # images_numbers = range(1, 8)
+    images_numbers = [7]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
-    # process.plot_images_varaitions()
-    process.plot_images_results()
 
 
 if __name__ == '__main__':
