@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import timeit
 import numpy as np
 import pandas as pd
-import math 
+import math
 
 IMAGES_PATH = './images/'
 LOG_PATH = './q1_output.xlsx'
@@ -55,7 +55,7 @@ class Image:
 
         # main title
         plt.suptitle(self.title, size=16)
-        
+
         # plotting all image variations in subplots
         for i, (title, img) in enumerate(self.variations.items()):
             plt.subplot(rows, cols, i + 1)
@@ -63,37 +63,38 @@ class Image:
                 plot_color_imshow(img, title)
             else:
                 plot_gray_imshow(img, title)
-                
+
         plt.show()
 
-    def delete_template(self, source): 
+    def delete_template(self, source):
         """_summary_
         Args:
             source (_type_): _description_
         """
         template = cv2.imread(IMAGES_PATH + 'template.jpg', cv2.IMREAD_COLOR)
         template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-        
+
         temp_h, temp_w = template.shape[::]
         org_h, org_w = self.variations[self.org_gray_key].shape
 
-        detected = cv2.matchTemplate(self.variations[self.org_gray_key], template, cv2.TM_CCOEFF_NORMED)
-        
+        detected = cv2.matchTemplate(
+            self.variations[self.org_gray_key], template, cv2.TM_CCOEFF_NORMED)
+
         threshold = 0.5
         loc = np.where(detected >= threshold)
-        
+
         result = self.variations[source].copy()
         for pt in zip(*loc[::-1]):
-           
+
             if pt[1] < org_h - org_h//5:
                 continue
-            
+
             result[pt[1]:pt[1] + temp_h, pt[0]:pt[0] + temp_w] = BLACK
             # cv2.rectangle(
             #     self.variations[self.org_color_key], pt, (pt[0] + temp_w, pt[1] + temp_h), (255, 0, 0), 2)
-            
+
         self.variations[self.del_temp_key] = result
-        
+
     def gaussian_blur(self, source, kernel_size):
         blurred = cv2.GaussianBlur(self.variations[source],
                                    (kernel_size, kernel_size), 0)
@@ -112,7 +113,7 @@ class Image:
                                    ddepth=-1,
                                    kernel=kernel)
         self.variations[self.sharpen_key] = image_sharp
-        
+
     def threshold(self, source, block_size, c):
         thresh = cv2.adaptiveThreshold(self.variations[source],
                                        maxValue=WHITE,
@@ -131,7 +132,7 @@ class Image:
     def canny_edges(self, source):
         canny = cv2.Canny(self.variations[source], 50, 200)
         self.variations[Image.canny_key] = canny
-    
+
     def hough_lines(self, source):
         """_summary_
         Args:
@@ -139,14 +140,14 @@ class Image:
         """
         # use canny edge detection
         edges = cv2.Canny(self.variations[source], 50, 150, apertureSize=3)
-        
+
         # apply hough transform to detect lines
-        lines = cv2.HoughLines(edges,1,np.pi/180,600)
-        
+        lines = cv2.HoughLines(edges, 1, np.pi/180, 600)
+
         # iterate over points
         lines_result = self.variations[self.org_color_key].copy()
         crop_result = self.variations[source].copy()
-        
+
         rows, cols, __ = lines_result.shape
         startx, endx = 0, cols
         starty, endy = 0, rows
@@ -161,29 +162,29 @@ class Image:
             y1 = int(y0 + 1000*(a))
             x2 = int(x0 - 1000*(-b))
             y2 = int(y0 - 1000*(a))
-            
+
             # vertical lines
             if theta > np.pi/180 * 170 or theta < np.pi/180 * 10:
-                if x1 < cols / 2 :
+                if x1 < cols / 2:
                     startx = max(startx, x1, x2)
-                else:  
+                else:
                     endx = min(endx, x1, x2)
                 cv2.line(lines_result, (x1, y1), (x2, y2), (0, 0, 255), 6)
-            
+
             # horizontal lines
             if theta > np.pi/180 * 80 and theta < np.pi/180 * 100:
                 if y1 < rows / 2:
                     starty = max(starty, y1, y2)
-                else:  
+                else:
                     endy = min(endy, y1, y2)
                 cv2.line(lines_result, (x1, y1), (x2, y2), (255, 0, 0), 6)
-       
-        # color black until frame coordinations      
+
+        # color black until frame coordinations
         crop_result[:starty, :] = BLACK
         crop_result[:, :startx] = BLACK
         crop_result[endy:, :] = BLACK
         crop_result[:, endx:] = BLACK
-        
+
         self.variations[self.hough_lines_key] = lines_result
         self.variations[self.cropping_key] = crop_result
 
@@ -210,26 +211,26 @@ class Image:
                                     iter,
                                     cv2.BORDER_REFLECT101)
         self.variations[Image.dilation_key] = dilation
-        
+
     def find_and_fill_contours(self, source):
         """_summary_
         Args:
             source (_type_): _description_
         """
         result = self.variations[source].copy()
-        
+
         contours, __ = cv2.findContours(self.variations[source],
                                         cv2.RETR_TREE,
                                         cv2.CHAIN_APPROX_NONE)
         cv2.drawContours(result,
                          contours,
                          -1,
-                         color = (255, 255, 255),
-                         thickness=cv2.FILLED, 
+                         color=(255, 255, 255),
+                         thickness=cv2.FILLED,
                          lineType=cv2.LINE_AA)
-        
+
         self.variations[Image.fcontours_key] = result
-    
+
     def fill_poly(self, source):
         """_summary_
         Args:
@@ -265,26 +266,27 @@ class Image:
             min_gray (_type_): _description_
         """
         # remove small and huge rectangles
-        self.pieces = [(x, y, w, h) for (x, y, w, h) in self.pieces if (min < w < max and min < h < max)]
-        
+        self.pieces = [(x, y, w, h) for (x, y, w, h)
+                       in self.pieces if (min < w < max and min < h < max)]
+
         # helping vars
         org_gray = self.variations[Image.org_gray_key]
         (rows, cols) = org_gray.shape
         good_pieces = []
-        
+
         for rect1 in self.pieces:
             x1, y1, w1, h1 = rect1
-            
+
             # check if rect is too close to the borders
             if y1 < border_size or y1 > rows - border_size or x1 < border_size or x1 > cols - border_size:
                 continue
-            
+
             # check if area contains dark pixels
             area = org_gray[y1:y1 + h1, x1:x1 + w1]
             dark_pix = np.sum(area <= min_gray)
             if dark_pix <= 10:
                 continue
-            
+
             # check if the rect is completely inside another one
             parent = 0
             for rect2 in self.pieces:
@@ -292,15 +294,15 @@ class Image:
                 if rect1 == rect2:
                     continue
                 if x2 <= x1 and y2 <= y1 and (x2+w2) >= (x1+w1) and (y2+h2) >= (y1+h1):
-                    parent +=1
-                    
+                    parent += 1
+
             if parent == 0:
                 good_pieces.append(rect1)
-                
+
         # sort by distance from origin
         good_pieces.sort(key=lambda p: math.hypot(p[0], p[1]))
         self.pieces = good_pieces
-    
+
     def draw_pieces(self):
         """_summary_
         """
@@ -313,7 +315,7 @@ class Image:
                           (x + w, y + h),
                           (0, 0, 255),
                           4)
-            cv2.putText(result, 
+            cv2.putText(result,
                         str(i+1),
                         (x, y-15),
                         cv2.FONT_HERSHEY_SIMPLEX,
@@ -326,12 +328,12 @@ class Image:
     def write_to_excel(self):
         """_summary_
         """
-        coordinations = [(x, y, x+w, y+h) for (x,y,w,h) in self.pieces]
+        coordinations = [(x, y, x+w, y+h) for (x, y, w, h) in self.pieces]
         df = pd.DataFrame(coordinations,
                           columns=['top left x', 'top left y', 'down right x', 'down right y'])
         with pd.ExcelWriter(LOG_PATH, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
             df.to_excel(writer, sheet_name=self.title)
-        
+
     def plt_final_result(self):
         """_summary_
         """
@@ -342,10 +344,10 @@ class Image:
         plot_color_imshow(self.variations[Image.org_color_key], "Original")
         plt.subplot(1, 2, 2)
         plot_color_imshow(self.variations[Image.brect_key], "Result")
-        
+
         plt.show()
 
-    
+
 class Process:
 
     def __init__(self, images_numbers, prefix, suffix) -> None:
@@ -354,7 +356,7 @@ class Process:
         self.suffix = suffix
         self.images = []
 
-    def open_images(self, scale_percent = -1):
+    def open_images(self, scale_percent=-1):
         """_summary_
         Args:
             scale_percent (_type_): _description_
@@ -365,7 +367,7 @@ class Process:
             path = IMAGES_PATH + title + self.suffix
             # read image
             img_color = cv2.imread(path, cv2.IMREAD_COLOR)
-            
+
             if img_color is None:
                 print(f"Failed to read image, check the path: {path}")
             else:
@@ -376,8 +378,8 @@ class Process:
                     dim = (width, height)
 
                     img_color = cv2.resize(img_color,
-                                        dim,
-                                        interpolation=cv2.INTER_AREA)
+                                           dim,
+                                           interpolation=cv2.INTER_AREA)
                 # convert to gray
                 img_gray = cv2.cvtColor(img_color, cv2.COLOR_BGR2GRAY)
                 # create Image object and add original variations
@@ -396,65 +398,65 @@ class Process:
         for img in self.images:
             print(f"starting {img.title}")
 
-            # img = Image(img)  
+            # img = Image(img)
             # first step - cleaning noises
             img.gaussian_blur(source=Image.org_gray_key,
-                             kernel_size=51)
-            
+                              kernel_size=51)
+
             img.sharpen(source=Image.gblur_key)
-            
+
             img.threshold(source=Image.sharpen_key,
                           block_size=621,
                           c=5)
-            
+
             img.hough_lines(source=Image.thresh_key)
-            
+
             img.delete_template(source=Image.cropping_key)
 
             # second step - detect contours and fill
             img.find_and_fill_contours(source=Image.del_temp_key)
-            
+
             img.dilate(source=Image.fcontours_key,
                        struct=cv2.MORPH_ELLIPSE,
-                       kernel_size=9,
-                       iter=4)
-            
+                       kernel_size=5,
+                       iter=2)
+
             img.erode(source=Image.dilation_key,
                       struct=cv2.MORPH_ELLIPSE,
                       kernel_size=5,
                       iter=4)
-            
+
             # third step - fill holes
             img.meddian_blur(source=Image.dilation_key,
-                             kernel_size=17)
-            
+                             kernel_size=5)
+
             img.erode(source=Image.mblur_key,
-                                struct=cv2.MORPH_CROSS,
-                                kernel_size=5,
-                                iter=4)     
-                   
+                      struct=cv2.MORPH_CROSS,
+                      kernel_size=3,
+                      iter=2)
+
             # final step - detect and draw the bounding rect
             img.find_bounding_rect(source=Image.erosion_key)
-            
+
             img.keep_good_pieces(min=40,
                                  max=3000,
                                  border_size=200,
-                                 min_gray = 150)
-            
+                                 min_gray=180)
+
             img.draw_pieces()
             img.write_to_excel()
-            
+
             print(f"finished {img.title}")
             # img.plt_variations()
             img.plt_final_result()
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
-        
-        
+
+
 def main():
     # images_numbers = range(1, 8)
-    images_numbers = [7]
+    images_numbers = [3]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
