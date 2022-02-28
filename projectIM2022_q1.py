@@ -1,11 +1,12 @@
-from unittest import result
 import cv2
-from cv2 import boundingRect
 import matplotlib.pyplot as plt
 import timeit
 import numpy as np
+import pandas as pd
+import math 
 
 IMAGES_PATH = './images/'
+LOG_PATH = './q1_output.xlsx'
 BLACK, WHITE = 0, 255
 
 
@@ -36,6 +37,7 @@ class Image:
     fill_polly_key = "fill poly"
     brect_key = "bounding rect color"
     cropping_key = "cropping frame"
+    del_temp_key = "delete template"
 
     def __init__(self, title, path) -> None:
         self.title = title
@@ -64,6 +66,34 @@ class Image:
                 
         plt.show()
 
+    def delete_template(self, source): 
+        """_summary_
+        Args:
+            source (_type_): _description_
+        """
+        template = cv2.imread(IMAGES_PATH + 'template.jpg', cv2.IMREAD_COLOR)
+        template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+        
+        temp_h, temp_w = template.shape[::]
+        org_h, org_w = self.variations[self.org_gray_key].shape
+
+        detected = cv2.matchTemplate(self.variations[self.org_gray_key], template, cv2.TM_CCOEFF_NORMED)
+        
+        threshold = 0.5
+        loc = np.where(detected >= threshold)
+        
+        result = self.variations[source].copy()
+        for pt in zip(*loc[::-1]):
+           
+            if pt[1] < org_h - org_h//5:
+                continue
+            
+            result[pt[1]:pt[1] + temp_h, pt[0]:pt[0] + temp_w] = BLACK
+            # cv2.rectangle(
+            #     self.variations[self.org_color_key], pt, (pt[0] + temp_w, pt[1] + temp_h), (255, 0, 0), 2)
+            
+        self.variations[self.del_temp_key] = result
+        
     def gaussian_blur(self, source, kernel_size):
         blurred = cv2.GaussianBlur(self.variations[source],
                                    (kernel_size, kernel_size), 0)
@@ -249,10 +279,10 @@ class Image:
             if y1 < border_size or y1 > rows - border_size or x1 < border_size or x1 > cols - border_size:
                 continue
             
-            # check if the rect contains dark pixels
+            # check if area contains dark pixels
             area = org_gray[y1:y1 + h1, x1:x1 + w1]
             dark_pix = np.sum(area <= min_gray)
-            if dark_pix == 0:
+            if dark_pix <= 10:
                 continue
             
             # check if the rect is completely inside another one
@@ -263,17 +293,17 @@ class Image:
                     continue
                 if x2 <= x1 and y2 <= y1 and (x2+w2) >= (x1+w1) and (y2+h2) >= (y1+h1):
                     parent +=1
-
+                    
             if parent == 0:
                 good_pieces.append(rect1)
                 
-        # keep only good pieces
+        # sort by distance from origin
+        good_pieces.sort(key=lambda p: math.hypot(p[0], p[1]))
         self.pieces = good_pieces
-        
-    def sort_pieces(self):
-        pass
     
     def draw_pieces(self):
+        """_summary_
+        """
         # draw
         result = self.variations[Image.org_color_key].copy()
         for i, rect in enumerate(self.pieces):
@@ -284,15 +314,24 @@ class Image:
                           (0, 0, 255),
                           4)
             cv2.putText(result, 
-                        i+1,
-                        (x, y-10),
+                        str(i+1),
+                        (x, y-15),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        0.9,
+                        4,
                         (0, 0, 255),
-                        2)
+                        5)
 
         self.variations[Image.brect_key] = result
 
+    def write_to_excel(self):
+        """_summary_
+        """
+        coordinations = [(x, y, x+w, y+h) for (x,y,w,h) in self.pieces]
+        df = pd.DataFrame(coordinations,
+                          columns=['top left x', 'top left y', 'down right x', 'down right y'])
+        with pd.ExcelWriter(LOG_PATH) as writer:
+            df.to_excel(writer, sheet_name=self.title)
+        
     def plt_final_result(self):
         """_summary_
         """
@@ -355,7 +394,7 @@ class Process:
         start = timeit.default_timer()
 
         for img in self.images: 
-            img = Image(img)  
+            # img = Image(img)  
             # first step - cleaning noises
             img.gaussian_blur(source=Image.org_gray_key,
                              kernel_size=51)
@@ -368,8 +407,10 @@ class Process:
             
             img.hough_lines(source=Image.thresh_key)
             
+            img.delete_template(source=Image.cropping_key)
+
             # second step - detect contours and fill
-            img.find_and_fill_contours(source=Image.cropping_key)
+            img.find_and_fill_contours(source=Image.del_temp_key)
             
             img.dilate(source=Image.fcontours_key,
                        struct=cv2.MORPH_ELLIPSE,
@@ -390,15 +431,16 @@ class Process:
                                 kernel_size=5,
                                 iter=4)     
                    
-            # final step - detect bounding rect
+            # final step - detect and draw the bounding rect
             img.find_bounding_rect(source=Image.erosion_key)
             
             img.keep_good_pieces(min=40,
                                  max=3000,
-                                 border_size=200,
+                                 border_size=250,
                                  min_gray = 150)
             
             img.draw_pieces()
+            img.write_to_excel()
             
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
@@ -414,7 +456,7 @@ class Process:
         
 def main():
     images_numbers = range(1, 8)
-    # images_numbers = [4]
+    # images_numbers = [7]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
