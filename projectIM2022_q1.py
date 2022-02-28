@@ -12,11 +12,21 @@ BLACK, WHITE = 0, 255
 
 # Generic functions
 def plot_gray_imshow(img, title):
+    """_summary_
+    Args:
+        img (_type_): _description_
+        title (_type_): _description_
+    """
     plt.imshow(img, cmap='gray', vmin=BLACK, vmax=WHITE)
     plt.title(title)
 
 
 def plot_color_imshow(img, title):
+    """_summary_
+    Args:
+        img (_type_): _description_
+        title (_type_): _description_
+    """
     plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     plt.title(title)
 
@@ -43,9 +53,9 @@ class Image:
     def __init__(self, title, path) -> None:
         self.title = title
         self.path = path
-        self.variations = {}    # dict[str, np.array]
-        self.pieces = []    # list[Piece]
-
+        self.variations = {}   
+        self.pieces = []  
+          
     def plt_variations(self):
         """_summary_
         """
@@ -72,18 +82,23 @@ class Image:
         Args:
             source (_type_): _description_
         """
+        # read template image
         template = cv2.imread(IMAGES_PATH + 'template.jpg', cv2.IMREAD_COLOR)
         template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
 
+        # init helping vars
         temp_h, temp_w = template.shape[::]
-        org_h, org_w = self.variations[self.org_gray_key].shape
-
+        org_h, __ = self.variations[self.org_gray_key].shape
+        
+        # find the template inside the original image
         detected = cv2.matchTemplate(
             self.variations[self.org_gray_key], template, cv2.TM_CCOEFF_NORMED)
 
+        # take only matches with score above 0.5
         threshold = 0.5
         loc = np.where(detected >= threshold)
-
+        
+        # delete all matches by coloring them black in the image
         result = self.variations[source].copy()
         for pt in zip(*loc[::-1]):
 
@@ -92,27 +107,46 @@ class Image:
 
             result[pt[1]:pt[1] + temp_h, pt[0]:pt[0] + temp_w] = BLACK
             result[pt[1] + temp_h:, :] = BLACK
-            # cv2.rectangle(
-            #     self.variations[self.org_color_key], pt, (pt[0] + temp_w, pt[1] + temp_h), (255, 0, 0), 2)
 
         self.variations[self.del_temp_key] = result
 
     def bilateral_blur(self, source, d, sigma_color, sigma_space):
+        """_summary_
+        Args:
+            source (_type_): _description_
+            d (_type_): _description_
+            sigma_color (_type_): _description_
+            sigma_space (_type_): _description_
+        """
         blurred = cv2.bilateralFilter(self.variations[source],
                                       d, sigma_color, sigma_space)
         self.variations[self.bblur_key] = blurred
 
     def gaussian_blur(self, source, kernel_size):
+        """_summary_
+        Args:
+            source (_type_): _description_
+            kernel_size (_type_): _description_
+        """
         blurred = cv2.GaussianBlur(self.variations[source],
                                    (kernel_size, kernel_size), 0)
         self.variations[self.gblur_key] = blurred
 
     def meddian_blur(self, source, kernel_size):
+        """_summary_
+        Args:
+            source (_type_): _description_
+            kernel_size (_type_): _description_
+        """
         blurred = cv2.medianBlur(self.variations[source],
                                  kernel_size)
         self.variations[self.mblur_key] = blurred
 
     def sharpen(self, source):
+        """_summary_
+        Args:
+            source (_type_): _description_
+        """
         kernel = np.array([[0, -1, 0],
                           [-1, 5, -1],
                           [0, -1, 0]])
@@ -122,6 +156,12 @@ class Image:
         self.variations[self.sharpen_key] = image_sharp
 
     def threshold(self, source, block_size, c):
+        """_summary_
+        Args:
+            source (_type_): _description_
+            block_size (_type_): _description_
+            c (_type_): _description_
+        """
         thresh = cv2.adaptiveThreshold(self.variations[source],
                                        maxValue=WHITE,
                                        adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -131,12 +171,20 @@ class Image:
         self.variations[self.thresh_key] = thresh
 
     def laplacian_derivatives(self, source):
+        """_summary_
+        Args:
+            source (_type_): _description_
+        """
         laplacian = cv2.Laplacian(self.variations[source],
                                   cv2.CV_64F)
         # abs_laplacian = cv2.convertScaleAbs(laplacian)
         self.variations[Image.lap_key] = laplacian
 
     def canny_edges(self, source):
+        """_summary_
+        Args:
+            source (_type_): _description_
+        """
         canny = cv2.Canny(self.variations[source], 50, 200)
         self.variations[Image.canny_key] = canny
 
@@ -196,6 +244,13 @@ class Image:
         self.variations[self.cropping_key] = crop_result
 
     def erode(self, source, struct, kernel_size, iter):
+        """_summary_
+        Args:
+            source (_type_): _description_
+            struct (_type_): _description_
+            kernel_size (_type_): _description_
+            iter (_type_): _description_
+        """
         kernel = cv2.getStructuringElement(struct,
                                            (kernel_size, kernel_size))
         erosion = cv2.morphologyEx(self.variations[source],
@@ -208,6 +263,13 @@ class Image:
         self.variations[Image.erosion_key] = erosion
 
     def dilate(self, source, struct, kernel_size, iter):
+        """_summary_
+        Args:
+            source (_type_): _description_
+            struct (_type_): _description_
+            kernel_size (_type_): _description_
+            iter (_type_): _description_
+        """
         kernel = cv2.getStructuringElement(struct,
                                            (kernel_size, kernel_size))
         dilation = cv2.morphologyEx(self.variations[source],
@@ -226,6 +288,7 @@ class Image:
         """
         size = self.variations[source].shape
         result = np.zeros(size)
+        
         contours, __ = cv2.findContours(self.variations[source],
                                         cv2.RETR_EXTERNAL,
                                         cv2.CHAIN_APPROX_NONE)
@@ -314,8 +377,8 @@ class Image:
     def draw_pieces(self):
         """_summary_
         """
-        # draw
         result = self.variations[Image.org_color_key].copy()
+        
         for i, rect in enumerate(self.pieces):
             x, y, w, h = rect
             cv2.rectangle(result,
@@ -373,11 +436,12 @@ class Process:
             # calculate path
             title = self.prefix + str(i)
             path = IMAGES_PATH + title + self.suffix
+            
             # read image
             img_color = cv2.imread(path, cv2.IMREAD_COLOR)
-
             if img_color is None:
                 print(f"Failed to read image, check the path: {path}")
+                
             else:
                 if scale_percent > 0:
                     # resize image
@@ -390,10 +454,12 @@ class Process:
                                            interpolation=cv2.INTER_AREA)
                 # convert to gray
                 img_gray = cv2.cvtColor(img_color, cv2.COLOR_BGR2GRAY)
+                
                 # create Image object and add original variations
                 image = Image(title, path)
                 image.variations[Image.org_color_key] = img_color
                 image.variations[Image.org_gray_key] = img_gray
+                
                 # append Image to the images list
                 self.images.append(image)
 
@@ -406,7 +472,6 @@ class Process:
         for img in self.images:
             print(f"starting {img.title}")
 
-            # img = Image(img)
             # first step - cleaning noises
             img.bilateral_blur(source=Image.org_gray_key,
                                d=15,
@@ -443,26 +508,29 @@ class Process:
                       kernel_size=3,
                       iter=4)
 
-            # # final step - detect and draw the bounding rect
-            # img.find_bounding_rect(source=Image.erosion_key)
+            # final step - detect and draw the bounding rect
+            img.find_bounding_rect(source=Image.erosion_key)
 
-            # img.keep_good_pieces(min=40,
-            #                      max=3000,
-            #                      border_size=150,
-            #                      min_gray=180)
+            img.keep_good_pieces(min=40,
+                                 max=3000,
+                                 border_size=150,
+                                 min_gray=180)
 
-            # img.draw_pieces()
-            # img.write_to_excel()
+            img.draw_pieces()
+            img.write_to_excel()
 
             print(f"finished {img.title}")
-            img.plt_variations()
-            # img.plt_final_result()
+            
+            # img.plt_variations()
+            img.plt_final_result()
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
 
 
 def main():
+    """_summary_
+    """
     # images_numbers = range(1, 8)
     images_numbers = [3]
     process = Process(images_numbers, prefix='image', suffix='.jpg')

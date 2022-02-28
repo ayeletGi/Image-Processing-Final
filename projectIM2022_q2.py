@@ -5,6 +5,7 @@ from skimage import data
 from skimage.filters import gaussian
 from skimage.segmentation import active_contour
 
+# read image
 
 img = data.astronaut()
 img = rgb2gray(img)
