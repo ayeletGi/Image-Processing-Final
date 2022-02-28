@@ -443,7 +443,7 @@ class Process:
 
             img.erode(source=Image.mblur_key,
                       struct=cv2.MORPH_CROSS,
-                      kernel_size=5,
+                      kernel_size=7,
                       iter=4)
 
             # final step - detect and draw the bounding rect
@@ -451,15 +451,15 @@ class Process:
 
             img.keep_good_pieces(min=40,
                                  max=3000,
-                                 border_size=200,
+                                 border_size=150,
                                  min_gray=180)
 
             img.draw_pieces()
             img.write_to_excel()
 
             print(f"finished {img.title}")
-            img.plt_variations()
-            # img.plt_final_result()
+            # img.plt_variations()
+            img.plt_final_result()
 
         stop = timeit.default_timer()
         print(f"Pipline finished! time: {stop - start} seconds")
@@ -467,7 +467,7 @@ class Process:
 
 def main():
     # images_numbers = range(1, 8)
-    images_numbers = [1]
+    images_numbers = [2]
     process = Process(images_numbers, prefix='image', suffix='.jpg')
     process.open_images()
     process.find_pieces()
