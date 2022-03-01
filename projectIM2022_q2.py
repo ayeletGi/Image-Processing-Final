@@ -11,9 +11,12 @@ BLACK, WHITE = 0, 255
 
 
 def find_piece_contours(rect_gray):
-    """_summary_
+    """ 
+    Find the closest contours for a given piece using our modified algorithm.
     Args:
-        rect_gray (_type_): _description_
+        rect_gray (np.asarray): source image (rect).
+    Returns:
+        list: closest contours points.
     """
     # blur
     blur = cv2.bilateralFilter(rect_gray, 15, 100, 100)
@@ -54,10 +57,12 @@ def find_piece_contours(rect_gray):
 
 
 def process_image_pieces(title, suffix,  pad):
-    """_summary_
+    """
+    Process the given title image - find all the pieces the contours,
+    saving them into Q2_LOG_PATH file and plotting the results.
     Args:
-        title (_type_): _description_
-        suffix (_type_): _description_
+        title (str): image title
+        suffix (str): each image name common end from the title.
     """
     print(f"starting {title}")
     start = timeit.default_timer()
@@ -133,11 +138,13 @@ def process_image_pieces(title, suffix,  pad):
     
     
 def main(images_numbers, prefix, suffix):
-    """_summary_
+    """
+    Main method to find the pieces contours on each given image. 
+    Each image path is calculates by: IMAGES_PATH + prefix + str(i) + suffix.
     Args
-        images_numbers (_type_): _description_
-        prefix (_type_): _description_
-        suffix (_type_): _description_
+        images_numbers (list): images numbers to open.
+        suffix (str): each image name common start up until the number.
+        prefix (str): each image name common end from the number.
     """
     for i in images_numbers:
         title = prefix + str(i)

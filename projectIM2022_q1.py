@@ -13,10 +13,11 @@ BLACK, WHITE = 0, 255
 # Generic functions
 
 def plot_gray_imshow(img, title):
-    """_summary_
+    """
+    Plot gray image.
     Args:
-        img (_type_): _description_
-        title (_type_): _description_
+        img (np.array): img to show.
+        title (str): img title.
     """
     plt.imshow(img, cmap='gray', vmin=BLACK, vmax=WHITE)
     plt.title(title)
@@ -24,10 +25,11 @@ def plot_gray_imshow(img, title):
 
 
 def plot_color_imshow(img, title):
-    """_summary_
+    """
+    Plot color image.
     Args:
-        img (_type_): _description_
-        title (_type_): _description_
+        img (np.array):  img to show.
+        title (str): img title.
     """
     plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     plt.title(title)
@@ -35,7 +37,11 @@ def plot_color_imshow(img, title):
 
 
 class Image:
-    """_summary_
+    """
+    Image class represent one image.
+    The class contains functions to perform all of our 
+    algorithm variations on the image.
+    The keys are used to store and reference a certain image variation.
     """
     org_color_key = "original color"
     org_gray_key = "original gray"
@@ -59,7 +65,8 @@ class Image:
 
 
     def plt_variations(self):
-        """_summary_
+        """
+        Plotting all of the image stored variations in one graph.
         """
         # calculate rows and cols
         rows = 2
@@ -81,9 +88,10 @@ class Image:
 
 
     def delete_template(self, source):
-        """_summary_
+        """
+        Finding the 'template.jpg' in the image and color it and under it in black.
         Args:
-            source (_type_): _description_
+            source (str): key to original image from self.variations.
         """
         # read template image
         template = cv2.imread(IMAGES_PATH + 'template.jpg', cv2.IMREAD_COLOR)
@@ -115,12 +123,20 @@ class Image:
 
 
     def bilateral_blur(self, source, d, sigma_color, sigma_space):
-        """_summary_
+        """
+        Blurs the source variations using bilateralFilter and storing the result with "bblur_key" key.
         Args:
-            source (_type_): _description_
-            d (_type_): _description_
-            sigma_color (_type_): _description_
-            sigma_space (_type_): _description_
+            source (str): key to original image from self.variations.
+            
+            d (int): diameter of each pixel neighborhood that is used during filtering.
+            If it is non-positive, it is computed from sigmaSpace.
+            
+            sigma_color (int): diameter of each pixel neighborhood that is used during filtering.
+            If it is non-positive, it is computed from sigmaSpace.
+            
+            sigma_space (int): filter sigma in the coordinate space.
+            A larger value of the parameter means that farther pixels will influence each other as long as their colors are close enough (see sigmaColor ).
+            When d&gt;0, it specifies the neighborhood size regardless of sigmaSpace. Otherwise, d is proportional to sigmaSpace.
         """
         blurred = cv2.bilateralFilter(self.variations[source],
                                       d, sigma_color, sigma_space)
@@ -128,10 +144,11 @@ class Image:
 
 
     def meddian_blur(self, source, kernel_size):
-        """_summary_
+        """
+        Blurs the source variations using medianBlur and storing the result with "mblur_key" key.
         Args:
-            source (_type_): _description_
-            kernel_size (_type_): _description_
+            source (str): key to original image from self.variations.
+            kernel_size (int): aperture linear size; it must be odd and greater than 1, for example: 3, 5, 7
         """
         blurred = cv2.medianBlur(self.variations[source],
                                  kernel_size)
@@ -139,11 +156,16 @@ class Image:
 
 
     def threshold(self, source, block_size, c):
-        """_summary_
+        """
+        Apply adaptiveThreshold and storing the result with "thresh_key" key.
         Args:
-            source (_type_): _description_
-            block_size (_type_): _description_
-            c (_type_): _description_
+            source (str): key to original image from self.variations.
+            
+            block_size (_type_): size of a pixel neighborhood that is used to calculate a threshold
+            value for the pixel: 3, 5, 7, and so on.
+            
+            c (_type_): constant subtracted from the mean or weighted mean (see the details below).
+            Normally, it is positive but may be zero or negative as well.
         """
         thresh = cv2.adaptiveThreshold(self.variations[source],
                                        maxValue=WHITE,
@@ -154,10 +176,13 @@ class Image:
         self.variations[self.thresh_key] = thresh
 
 
-    def hough_lines(self, source):
-        """_summary_
+    def crop_frame(self, source):
+        """
+        Detect the image frame using Canny followed by HoughLines, 
+        saving image of colored detetected lines with "hough_lines_key" key.
+        Coloring up until the detected lines in black and saving the cropping result with "cropping_key" key.
         Args:
-            source (_type_): _description_
+            source (str): key to original image from self.variations.
         """
         # use canny edge detection
         edges = cv2.Canny(self.variations[source], 50, 150, apertureSize=3)
@@ -211,12 +236,13 @@ class Image:
 
 
     def erode(self, source, struct, kernel_size, iter):
-        """_summary_
+        """
+        Performs erode morphological transformation and saving the result with "erosion_key" key.
         Args:
-            source (_type_): _description_
-            struct (_type_): _description_
-            kernel_size (_type_): _description_
-            iter (_type_): _description_
+            source (str): key to original image from self.variations.
+            struct (int): shape Element shape that could be one of #MorphShapes.
+            kernel_size (int): size of the structuring element.
+            iter (_type_): number of times erosion are applied.
         """
         kernel = cv2.getStructuringElement(struct,
                                            (kernel_size, kernel_size))
@@ -231,12 +257,13 @@ class Image:
 
 
     def dilate(self, source, struct, kernel_size, iter):
-        """_summary_
+        """
+        Performs dilate morphological transformation and saving the result with "dilation_key" key.
         Args:
-            source (_type_): _description_
-            struct (_type_): _description_
-            kernel_size (_type_): _description_
-            iter (_type_): _description_
+            source (str): key to original image from self.variations.
+            struct (int): shape Element shape that could be one of #MorphShapes.
+            kernel_size (int): size of the structuring element.
+            iter (_type_): number of times erosion are applied.
         """
         kernel = cv2.getStructuringElement(struct,
                                            (kernel_size, kernel_size))
@@ -251,9 +278,10 @@ class Image:
 
 
     def find_and_fill_contours(self, source):
-        """_summary_
+        """
+        Find contours and filling closed ones.
         Args:
-            source (_type_): _description_
+            source (str): key to original image from self.variations.
         """
         size = self.variations[source].shape
         result = np.zeros(size)
@@ -272,9 +300,10 @@ class Image:
 
 
     def find_bounding_rect(self, source):
-        """_summary_
+        """
+        Finding contours and storing their boundingRect in self.pieces.
         Args:
-            source (_type_): _description_
+            source (np.array): original image.
         """
         contours, __ = cv2.findContours(self.variations[source],
                                         cv2.RETR_CCOMP,
@@ -283,12 +312,15 @@ class Image:
 
 
     def keep_good_pieces(self, min, max, border_size, min_gray, max_high_width_ratio, min_dark_pixels):
-        """_summary_
+        """ 
+        Sorting and selecting only the good rectangles from self.pieces.
         Args:
-            min (_type_): _description_
-            max (_type_): _description_
-            border_size (_type_): _description_
-            min_gray (_type_): _description_
+            min (int): min rect width and hight.
+            max (int):  max rect width and hight
+            border_size (int): min distance from the image borders.
+            min_gray (int): min value to consider as dark gray.
+            max_high_width_ratio (int): max value for h//w.
+            min_dark_pixels (int): min count of above dark gray pixels inside a rect.
         """
         # helping vars
         org_gray = self.variations[Image.org_gray_key]
@@ -334,7 +366,8 @@ class Image:
 
 
     def draw_pieces(self):
-        """_summary_
+        """
+        Draw all self.pieces on the original color image and saving the result with "brect_key" key. 
         """
         result = self.variations[Image.org_color_key].copy()
 
@@ -357,7 +390,8 @@ class Image:
 
 
     def write_to_excel(self):
-        """_summary_
+        """
+        Writes the final rectangles indexes and coordination into Q1_LOG_PATH file.
         """
         # genereting the representing string and index for each rectangle
         coordinations = [str(x)+","+str(y)+","+str(x+w)+","+str(y+h)
@@ -375,7 +409,8 @@ class Image:
 
 
     def plt_final_result(self):
-        """_summary_
+        """
+        Plots the original image next to the final result.
         """
         # main title
         plt.suptitle(self.title, size=16)
@@ -392,9 +427,13 @@ class Image:
 images: List[Image] = []
 
 def open_images(images_numbers, suffix, prefix):
-    """_summary_
+    """
+    Opens the given images_numbers.
+    Each image path is calculates by: IMAGES_PATH + prefix + str(i) + suffix.
     Args:
-        scale_percent (_type_): _description_
+        images_numbers (list): images numbers to open.
+        suffix (str): each image name common start up until the number.
+        prefix (str): each image name common end from the number.
     """
     for i in images_numbers:
         # calculate path
@@ -420,7 +459,8 @@ def open_images(images_numbers, suffix, prefix):
 
 
 def find_pieces():
-    """_summary_
+    """
+    Perform our algorithm on each image, timing the performance and plotting the results.
     """
     print("Please be patience, this pipline may take a while..")
 
@@ -438,7 +478,7 @@ def find_pieces():
                         block_size=601,
                         c=2)
 
-        img.hough_lines(source=Image.thresh_key)
+        img.crop_frame(source=Image.thresh_key)
 
         img.delete_template(source=Image.cropping_key)
 
@@ -485,7 +525,8 @@ def find_pieces():
 
 
 def main():
-    """_summary_
+    """
+    Main methods to run the program.
     """
     images_numbers = range(1, 8)
     open_images(images_numbers, prefix='image', suffix='.jpg')
