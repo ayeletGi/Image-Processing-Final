@@ -1,13 +1,10 @@
-from http.client import CONTINUE
-from turtle import shape
 import pandas as pd
 from projectIM2022_q1 import Q1_LOG_PATH
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import timeit
 
-prefix = 'image'
-suffix = '.jpg'
 IMAGES_PATH = './images/'
 Q2_LOG_PATH = './q2_output.xlsx'
 BLACK, WHITE = 0, 255
@@ -56,7 +53,15 @@ def find_piece_contours(rect_gray):
     return good_cntrs
 
 
-def process_image_pieces(title):
+def process_image_pieces(title, suffix,  pad):
+    """_summary_
+    Args:
+        title (_type_): _description_
+        suffix (_type_): _description_
+    """
+    print(f"starting {title}")
+    start = timeit.default_timer()
+
     path = IMAGES_PATH + title + suffix
 
     # read image
@@ -70,36 +75,75 @@ def process_image_pieces(title):
     # init helping vars
     rect_list = list(records)
     final_cntrs = []
+    final_cntrs_str = []
 
-    # go over each rectangle and find inside contour
     for rect in rect_list:
-        __, x1, y1, x2, y2 = rect
-        pad = 170
-        rect_gray = img_gray[y1-pad:y2+pad, x1-pad:x2+pad]
+        # go over each rectangle and find inside contour
+        __, point = rect
+        r_x1, r_y1, r_x2, r_y2 = point.split(",")
+        r_x1, r_y1, r_x2, r_y2 = int(r_x1), int(r_y1), int(r_x2), int(r_y2)
+        
+        rect_gray = img_gray[r_y1-pad:r_y2+pad, r_x1-pad:r_x2+pad]
         good_cntrs = find_piece_contours(rect_gray)
 
+        # go over the piece final cntrs and add them to final vars
+        piece_cntrs_str = ""
+        
         for c_index, cntr in enumerate(good_cntrs):
-            for p_index, __ in enumerate(cntr):
-                good_cntrs[c_index][p_index][0][0] += x1 - pad
-                good_cntrs[c_index][p_index][0][1] += y1 - pad
+            for l_index, line in enumerate(cntr):
+                for p_index, point in enumerate(line):
+                    # move the contour 
+                    x,y = point
+                    x += r_x1 - pad
+                    y += r_y1 - pad
+                   
+                    # to string   
+                    piece_cntrs_str += "(" + str(x) + "," + str(y) + "),"
 
+                    # update
+                    good_cntrs[c_index][l_index][p_index][0] = x
+                    good_cntrs[c_index][l_index][p_index][1] = y
+                    
+        piece_cntrs_str = piece_cntrs_str[:-1]
         final_cntrs.append(good_cntrs)
-
+        final_cntrs_str.append(piece_cntrs_str)
+        
     # go over all pieces and draw their contour on the final image
     for piece in final_cntrs:
         for cntr in piece:
             cv2.drawContours(img_color, cntr, -1, (255, 0, 0), 4)
+    
+    # write the final image contours into the log file
+    index = range(1, len(final_cntrs_str)+1)
+    df = pd.DataFrame(zip(index, final_cntrs_str),
+                        columns=['piece', 'contour'])
+    df = df.set_index('piece')
+    
+    with pd.ExcelWriter(Q2_LOG_PATH, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+        df.to_excel(writer, sheet_name=title)
+
+    stop = timeit.default_timer()
+    print(f"Pipline finished! time: {stop - start} seconds")
 
     # plot result
     plt.title(title)
     plt.imshow(img_color)
+    plt.axis('off')
     plt.show()
-
-
-if __name__ == "__main__":
-    images_numbers = range(1, 8)
-    # images_numbers = [7]
-
+    
+    
+def main(images_numbers, prefix, suffix):
+    """_summary_
+    Args
+        images_numbers (_type_): _description_
+        prefix (_type_): _description_
+        suffix (_type_): _description_
+    """
     for i in images_numbers:
         title = prefix + str(i)
-        process_image_pieces(title)
+        process_image_pieces(title, suffix, pad=170)
+
+    
+if __name__ == "__main__":
+    images_numbers = range(1, 8)
+    main(images_numbers, prefix='image', suffix='.jpg')
